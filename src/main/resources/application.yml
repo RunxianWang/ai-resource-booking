@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: 
+
+  datasource:
+    url: 
+    username: 
+    password: 
+    driver-class-name: 
+  sql:
+    init:
+      mode: 
+      encoding: 
+
+  data:
+    redis:
+      host: 
+      port: 
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    producer:
+      key-serializer: 
+      value-serializer: 
+      acks: all
+      retries: 3
+
+    consumer:
+      group-id: 
+      auto-offset-reset: 
+      key-deserializer:
+      value-deserializer: 
+
+    listener:
+      ack-mode: 
