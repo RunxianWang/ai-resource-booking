@@ -20,7 +20,7 @@ public class ConsumeLogRepository {
     public int insertSuccess(String messageKey, String consumerGroup) {
         return jdbcTemplate.update(
                 """
-                INSERT INTO consume_log(message_key, consumer_group, status)
+                INSERT IGNORE INTO consume_log(message_key, consumer_group, status)
                 VALUES (?, ?, ?)
                 """,
                 messageKey,

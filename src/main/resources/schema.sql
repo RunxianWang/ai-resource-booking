@@ -66,3 +66,49 @@ CREATE TABLE IF NOT EXISTS consume_log (
     UNIQUE KEY uk_message_consumer_group (message_key, consumer_group)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS booking_event_projection (
+                                           id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                           booking_id BIGINT NOT NULL,
+                                           user_id BIGINT NULL,
+                                           slot_id BIGINT NULL,
+                                           event_type VARCHAR(64) NOT NULL,
+                                           booking_status VARCHAR(32) NOT NULL,
+                                           last_message_key VARCHAR(128) NOT NULL,
+                                           event_time VARCHAR(64) NULL,
+                                           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_projection_booking (booking_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS booking_event_audit (
+                                           id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                           booking_id BIGINT NOT NULL,
+                                           message_key VARCHAR(128) NOT NULL,
+                                           consumer_group VARCHAR(128) NOT NULL,
+                                           event_type VARCHAR(64) NOT NULL,
+                                           processing_status VARCHAR(32) NOT NULL,
+                                           error_message TEXT NULL,
+                                           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_audit_message_consumer (message_key, consumer_group)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS dead_letter_log (
+                                           id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                           message_key VARCHAR(128) NOT NULL,
+                                           consumer_group VARCHAR(128) NOT NULL,
+                                           original_topic VARCHAR(128) NOT NULL,
+                                           original_partition INT NULL,
+                                           original_offset BIGINT NULL,
+                                           payload TEXT NOT NULL,
+                                           exception_class VARCHAR(255) NULL,
+                                           exception_message TEXT NULL,
+                                           status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                                           retry_count INT NOT NULL DEFAULT 0,
+                                           replay_count INT NOT NULL DEFAULT 0,
+                                           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                           replayed_at DATETIME NULL,
+                                           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_dead_letter_origin (message_key, consumer_group, original_topic, original_partition, original_offset),
+    INDEX idx_dead_letter_status_created (status, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

@@ -44,6 +44,30 @@
 
 预约和取消事件发送到 `booking-success-topic`，消费者通过 `consume_log` 的唯一键避免重复消费。
 
+## Kafka 消费失败恢复
+
+消费者将业务处理、事件投影、审计和 `consume_log` 放在同一个数据库事务中。处理失败时，Kafka 会按固定退避策略重试 3 次，仍失败的消息发送到 `booking-success-topic.DLT`，再由 DLT 消费者保存到 `dead_letter_log`。
+
+死信管理接口：
+
+- `GET /api/dead-letters`：查询死信
+- `GET /api/dead-letters/{id}`：查看死信详情
+- `POST /api/dead-letters/{id}/replay`：重新投递到原始 Topic
+- `POST /api/dead-letters/{id}/ignore`：忽略死信
+
+Replay 保留原始 `messageKey`，消费端通过幂等键避免重复处理。
+
+## 故障注入验证
+
+测试时可以显式设置环境变量：
+
+```text
+APP_FAULT_INJECTION_ENABLED=true
+APP_FAULT_INJECTION_POINT=projection-update
+```
+
+支持的故障点包括 `consumer-before-process`、`projection-update`、`consume-log-write`。默认关闭。故障注入用于验证事务回滚、有限重试和 DLT 链路。
+
 ## 启动方式
 
 ### 启动中间件
