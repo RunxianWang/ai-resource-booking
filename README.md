@@ -4,7 +4,7 @@
 项目中假设某个资源时段的名额是有限的，多个用户可能会同时预约同一个时段，所以重点处理的是：
 - 高并发下库存不能超卖
 - 同一个用户不能重复预约
-- 预约成功后的消息不能丢
+- 预约成功后的消息可靠投递
 - Kafka 重复消费时不能重复处理
 
 ## 技术栈
@@ -16,7 +16,7 @@
 - Kafka
 - Docker Compose
 - JMeter
-- 前端页面：TODO：按你的实际前端技术栈填写
+- 前端页面：Vite / React
 
 ## 项目主要流程
 
@@ -27,10 +27,22 @@
  -> Redis Lua 判断库存和重复预约
  -> Redis 预扣减库存
  -> MySQL 事务写入预约记录
- -> 写入 message_log
- -> Kafka 发送预约成功事件
+ -> 同事务写入 message_log（Outbox）
+ -> OutboxSender 异步发送 Kafka 事件
  -> 消费端记录消费日志
 ```
+
+## 主要接口
+
+- `POST /api/bookings`：提交预约
+- `POST /api/bookings/{bookingId}/cancel`：取消预约
+- `GET /api/bookings/my`：查询当前用户预约
+- `GET /api/bookings/slots/{slotId}`：查询时段预约记录
+- `GET /api/slots`：查询可预约时段
+- `GET /api/slots/{slotId}`：查询库存
+- `POST /api/slots/{slotId}/warmup`：Redis 库存预热
+
+预约和取消事件发送到 `booking-success-topic`，消费者通过 `consume_log` 的唯一键避免重复消费。
 
 ## 启动方式
 

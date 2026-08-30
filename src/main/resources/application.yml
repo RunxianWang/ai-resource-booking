@@ -3,37 +3,38 @@ server:
 
 spring:
   application:
-    name: 
+    name: ai-resource-booking
 
   datasource:
-    url: 
-    username: 
-    password: 
-    driver-class-name: 
+    url: jdbc:mysql://localhost:3307/wrx_booking?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
   sql:
     init:
-      mode: 
-      encoding: 
+      mode: always
+      encoding: UTF-8
 
   data:
     redis:
-      host: 
-      port: 
+      host: localhost
+      port: 6379
 
   kafka:
     bootstrap-servers: localhost:9092
 
     producer:
-      key-serializer: 
-      value-serializer: 
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
       retries: 3
 
     consumer:
-      group-id: 
-      auto-offset-reset: 
-      key-deserializer:
-      value-deserializer: 
+      group-id: booking-success-consumer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
     listener:
-      ack-mode: 
+      ack-mode: record
