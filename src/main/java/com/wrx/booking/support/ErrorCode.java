@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
  */
 public enum ErrorCode {
     SUCCESS("SUCCESS", "成功", HttpStatus.OK),
+    UNAUTHORIZED("UNAUTHORIZED", "未登录或登录已失效", HttpStatus.UNAUTHORIZED),
     INVALID_REQUEST("INVALID_REQUEST", "请求参数不合法", HttpStatus.BAD_REQUEST),
     RESOURCE_NOT_FOUND("RESOURCE_NOT_FOUND", "资源不存在", HttpStatus.NOT_FOUND),
     REDIS_ERROR("REDIS_ERROR", "Redis 执行异常", HttpStatus.OK),

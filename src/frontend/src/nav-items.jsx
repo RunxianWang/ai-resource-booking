@@ -1,6 +1,7 @@
 import { CalendarClock, Server } from 'lucide-react';
 import { MyBookingsPage } from './pages/MyBookingsPage.jsx';
 import { ResourceListPage } from './pages/ResourceListPage.jsx';
+import { AdminResourcePage } from './pages/AdminResourcePage.jsx';
 
 export const navItems = [
   {
@@ -14,5 +15,14 @@ export const navItems = [
     to: '/bookings',
     icon: <CalendarClock className="h-4 w-4" />,
     page: <MyBookingsPage />,
+  },
+];
+
+export const adminNavItems = [
+  {
+    title: '资源配置',
+    to: '/admin/resources',
+    icon: <Server className="h-4 w-4" />,
+    page: <AdminResourcePage />,
   },
 ];

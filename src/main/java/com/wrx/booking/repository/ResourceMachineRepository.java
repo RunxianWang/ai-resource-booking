@@ -34,4 +34,19 @@ public class ResourceMachineRepository {
                 )
         );
     }
+
+    public List<ResourceMachine> findAll() {
+        return jdbcTemplate.query(
+                "SELECT id, machine_name, resource_type, gpu_model, status, created_at, updated_at FROM resource_machine ORDER BY id ASC",
+                (rs, rowNum) -> new ResourceMachine(
+                        rs.getLong("id"), rs.getString("machine_name"), rs.getString("resource_type"),
+                        rs.getString("gpu_model"), rs.getString("status"),
+                        rs.getTimestamp("created_at").toLocalDateTime(), rs.getTimestamp("updated_at").toLocalDateTime()
+                )
+        );
+    }
+
+    public int updateStatus(Long machineId, String status) {
+        return jdbcTemplate.update("UPDATE resource_machine SET status = ? WHERE id = ?", status, machineId);
+    }
 }

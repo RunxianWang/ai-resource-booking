@@ -81,12 +81,14 @@ public class ResourceSlotRepository {
     public List<ResourceSlotCatalog> findAllForCatalog() {
         return jdbcTemplate.query(
                 """
-                SELECT id, machine_id, resource_name, resource_type, start_time, end_time,
-                       total_count, available_count, status
+                SELECT resource_slot.id, resource_slot.machine_id, resource_slot.resource_name, resource_slot.resource_type,
+                       resource_slot.start_time, resource_slot.end_time, resource_slot.total_count,
+                       resource_slot.available_count, resource_slot.status
                 FROM resource_slot
-                WHERE end_time > NOW()
-                  AND status <> 'FINISHED'
-                ORDER BY machine_id ASC, start_time ASC, id ASC
+                JOIN resource_machine m ON m.id = resource_slot.machine_id AND m.status = 'ACTIVE'
+                WHERE resource_slot.end_time > NOW()
+                  AND resource_slot.status <> 'FINISHED'
+                ORDER BY resource_slot.machine_id ASC, resource_slot.start_time ASC, resource_slot.id ASC
                 """,
                 (rs, rowNum) -> new ResourceSlotCatalog(
                         rs.getLong("id"),
@@ -105,12 +107,14 @@ public class ResourceSlotRepository {
     public List<ResourceSlotCatalog> findAllForWarmup() {
         return jdbcTemplate.query(
                 """
-                SELECT id, machine_id, resource_name, resource_type, start_time, end_time,
-                       total_count, available_count, status
+                SELECT resource_slot.id, resource_slot.machine_id, resource_slot.resource_name, resource_slot.resource_type,
+                       resource_slot.start_time, resource_slot.end_time, resource_slot.total_count,
+                       resource_slot.available_count, resource_slot.status
                 FROM resource_slot
-                WHERE end_time > NOW()
-                  AND status <> 'FINISHED'
-                ORDER BY machine_id ASC, start_time ASC, id ASC
+                JOIN resource_machine m ON m.id = resource_slot.machine_id AND m.status = 'ACTIVE'
+                WHERE resource_slot.end_time > NOW()
+                  AND resource_slot.status <> 'FINISHED'
+                ORDER BY resource_slot.machine_id ASC, resource_slot.start_time ASC, resource_slot.id ASC
                 """,
                 (rs, rowNum) -> new ResourceSlotCatalog(
                         rs.getLong("id"),
