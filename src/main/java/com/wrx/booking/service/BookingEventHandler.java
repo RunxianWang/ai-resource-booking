@@ -3,6 +3,7 @@ package com.wrx.booking.service;
 import com.wrx.booking.domain.BookingSuccessEvent;
 import com.wrx.booking.repository.BookingEventRepository;
 import com.wrx.booking.repository.ConsumeLogRepository;
+import com.wrx.booking.repository.ConsumerMetricRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,17 +13,20 @@ public class BookingEventHandler {
 
     private final ConsumeLogRepository consumeLogRepository;
     private final BookingEventRepository bookingEventRepository;
+    private final ConsumerMetricRepository consumerMetricRepository;
     private final boolean faultInjectionEnabled;
     private final String faultPoint;
 
     public BookingEventHandler(
             ConsumeLogRepository consumeLogRepository,
             BookingEventRepository bookingEventRepository,
+            ConsumerMetricRepository consumerMetricRepository,
             @Value("${app.fault-injection.enabled:false}") boolean faultInjectionEnabled,
             @Value("${app.fault-injection.point:none}") String faultPoint
     ) {
         this.consumeLogRepository = consumeLogRepository;
         this.bookingEventRepository = bookingEventRepository;
+        this.consumerMetricRepository = consumerMetricRepository;
         this.faultInjectionEnabled = faultInjectionEnabled;
         this.faultPoint = faultPoint;
     }
@@ -35,6 +39,7 @@ public class BookingEventHandler {
 
         int inserted = consumeLogRepository.insertSuccess(event.messageKey(), consumerGroup);
         if (inserted == 0) {
+            consumerMetricRepository.increment(ConsumerMetricRepository.DUPLICATE_CONSUMPTION);
             return;
         }
 

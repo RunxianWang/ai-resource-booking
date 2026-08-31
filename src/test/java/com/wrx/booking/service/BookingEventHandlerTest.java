@@ -3,6 +3,7 @@ package com.wrx.booking.service;
 import com.wrx.booking.domain.BookingSuccessEvent;
 import com.wrx.booking.repository.BookingEventRepository;
 import com.wrx.booking.repository.ConsumeLogRepository;
+import com.wrx.booking.repository.ConsumerMetricRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -22,10 +23,13 @@ class BookingEventHandlerTest {
     @Mock
     private BookingEventRepository bookingEventRepository;
 
+    @Mock
+    private ConsumerMetricRepository consumerMetricRepository;
+
     @Test
     void handlesEventAndWritesProjectionAndAudit() {
         when(consumeLogRepository.insertSuccess("booking:1:reserved", GROUP)).thenReturn(1);
-        BookingEventHandler handler = new BookingEventHandler(consumeLogRepository, bookingEventRepository, false, "none");
+        BookingEventHandler handler = new BookingEventHandler(consumeLogRepository, bookingEventRepository, consumerMetricRepository, false, "none");
 
         handler.handle(event(), GROUP);
 
@@ -36,18 +40,19 @@ class BookingEventHandlerTest {
     @Test
     void skipsDuplicateBeforeBusinessProcessing() {
         when(consumeLogRepository.insertSuccess("booking:1:reserved", GROUP)).thenReturn(0);
-        BookingEventHandler handler = new BookingEventHandler(consumeLogRepository, bookingEventRepository, false, "none");
+        BookingEventHandler handler = new BookingEventHandler(consumeLogRepository, bookingEventRepository, consumerMetricRepository, false, "none");
 
         handler.handle(event(), GROUP);
 
         verifyNoInteractions(bookingEventRepository);
+        verify(consumerMetricRepository).increment(ConsumerMetricRepository.DUPLICATE_CONSUMPTION);
     }
 
     @Test
     void injectedProjectionFailureIsPropagatedForKafkaRetry() {
         when(consumeLogRepository.insertSuccess("booking:1:reserved", GROUP)).thenReturn(1);
         BookingEventHandler handler = new BookingEventHandler(
-                consumeLogRepository, bookingEventRepository, true, "projection-update"
+                consumeLogRepository, bookingEventRepository, consumerMetricRepository, true, "projection-update"
         );
 
         assertThrows(IllegalStateException.class, () -> handler.handle(event(), GROUP));
@@ -62,4 +67,3 @@ class BookingEventHandlerTest {
         );
     }
 }
-

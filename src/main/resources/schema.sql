@@ -112,3 +112,9 @@ CREATE TABLE IF NOT EXISTS dead_letter_log (
     INDEX idx_dead_letter_status_created (status, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS consumer_metric (
+                                           metric_key VARCHAR(128) PRIMARY KEY,
+                                           metric_value BIGINT NOT NULL DEFAULT 0,
+                                           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
