@@ -130,11 +130,9 @@ public class ResourceSlotRepository {
         return jdbcTemplate.update(
                 """
                 UPDATE resource_slot
-                SET available_count = available_count - 1,
-                    status = 'RESERVED'
+                SET available_count = available_count - 1
                 WHERE id = ?
                   AND available_count > 0
-                  AND status = 'AVAILABLE'
                   AND end_time > NOW()
                 """,
                 slotId
@@ -145,11 +143,9 @@ public class ResourceSlotRepository {
         return jdbcTemplate.update(
                 """
                 UPDATE resource_slot
-                SET available_count = 1,
-                    status = 'AVAILABLE'
+                SET available_count = LEAST(available_count + 1, total_count)
                 WHERE id = ?
-                  AND status = 'RESERVED'
-                  AND end_time > NOW()
+                  AND available_count < total_count
                 """,
                 slotId
         );

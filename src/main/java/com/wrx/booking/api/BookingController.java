@@ -6,7 +6,7 @@ import com.wrx.booking.api.dto.BookingResponse;
 import com.wrx.booking.api.dto.SlotBookingResponse;
 import com.wrx.booking.api.dto.UserBookingResponse;
 import com.wrx.booking.service.BookingService;
-import com.wrx.booking.support.DemoUserContext;
+import com.wrx.booking.support.CurrentUserProvider;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,11 +21,11 @@ public class BookingController {
     private static final Logger log = LoggerFactory.getLogger(BookingController.class);
 
     private final BookingService bookingService;
-    private final DemoUserContext demoUserContext;
+    private final CurrentUserProvider currentUserProvider;
 
-    public BookingController(BookingService bookingService, DemoUserContext demoUserContext) {
+    public BookingController(BookingService bookingService, CurrentUserProvider currentUserProvider) {
         this.bookingService = bookingService;
-        this.demoUserContext = demoUserContext;
+        this.currentUserProvider = currentUserProvider;
     }
 
     /**
@@ -33,7 +33,7 @@ public class BookingController {
      */
     @PostMapping
     public BookingResponse book(@Valid @RequestBody BookingRequest request) {
-        Long demoUserId = demoUserContext.userId();
+        Long demoUserId = currentUserProvider.userId();
         if (request.userId() != null && !demoUserId.equals(request.userId())) {
             log.warn(
                     "event=booking.request.user_ignored requestUserId={} demoUserId={} slotId={}",
@@ -47,17 +47,17 @@ public class BookingController {
 
     @PostMapping("/{bookingId}/cancel")
     public BookingCancelResponse cancel(@PathVariable Long bookingId) {
-        return bookingService.cancel(bookingId, demoUserContext.userId());
+        return bookingService.cancel(bookingId, currentUserProvider.userId());
     }
 
     @GetMapping("/my")
     public List<UserBookingResponse> listMyBookings() {
-        return bookingService.listUserBookings(demoUserContext.userId());
+        return bookingService.listUserBookings(currentUserProvider.userId());
     }
 
     @GetMapping("/users/{userId}")
     public List<UserBookingResponse> listUserBookings(@PathVariable Long userId) {
-        Long demoUserId = demoUserContext.userId();
+        Long demoUserId = currentUserProvider.userId();
         if (!demoUserId.equals(userId)) {
             log.warn(
                     "event=booking.query.user_ignored requestUserId={} demoUserId={}",

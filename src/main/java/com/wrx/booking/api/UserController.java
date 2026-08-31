@@ -1,7 +1,7 @@
 package com.wrx.booking.api;
 
 import com.wrx.booking.api.dto.CurrentUserResponse;
-import com.wrx.booking.support.DemoUserContext;
+import com.wrx.booking.support.CurrentUserProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/users")
 public class UserController {
 
-    private final DemoUserContext demoUserContext;
+    private final CurrentUserProvider currentUserProvider;
 
-    public UserController(DemoUserContext demoUserContext) {
-        this.demoUserContext = demoUserContext;
+    public UserController(CurrentUserProvider currentUserProvider) {
+        this.currentUserProvider = currentUserProvider;
     }
 
     @GetMapping("/me")
     public CurrentUserResponse me() {
-        return new CurrentUserResponse(demoUserContext.userId(), demoUserContext.userName());
+        return new CurrentUserResponse(currentUserProvider.userId(), currentUserProvider.userName());
     }
 }
