@@ -1,6 +1,7 @@
 package com.wrx.booking.service;
 
 import com.wrx.booking.domain.ResourceSlotCatalog;
+import com.wrx.booking.repository.BookingRecordRepository;
 import com.wrx.booking.repository.ResourceSlotRepository;
 import com.wrx.booking.support.RedisKeys;
 import org.slf4j.Logger;
@@ -19,13 +20,16 @@ public class RedisStockWarmUpRunner implements ApplicationRunner {
 
     private final ResourceSlotRepository resourceSlotRepository;
     private final StringRedisTemplate redisTemplate;
+    private final BookingRecordRepository bookingRecordRepository;
 
     public RedisStockWarmUpRunner(
             ResourceSlotRepository resourceSlotRepository,
-            StringRedisTemplate redisTemplate
+            StringRedisTemplate redisTemplate,
+            BookingRecordRepository bookingRecordRepository
     ) {
         this.resourceSlotRepository = resourceSlotRepository;
         this.redisTemplate = redisTemplate;
+        this.bookingRecordRepository = bookingRecordRepository;
     }
 
     @Override
@@ -84,22 +88,22 @@ public class RedisStockWarmUpRunner implements ApplicationRunner {
             }
 
             String availableKey = RedisKeys.slotAvailable(slot.id());
-            Boolean exists = redisTemplate.hasKey(availableKey);
-            if (Boolean.TRUE.equals(exists)) {
-                log.info(
-                        "event=redis.stock.warmup.slot.skip slotId={} key={} reason=key_exists",
-                        slot.id(),
-                        availableKey
-                );
-                return WarmUpResult.SKIPPED;
-            }
-
+            redisTemplate.delete(availableKey);
+            redisTemplate.delete(RedisKeys.slotBookedUsers(slot.id()));
             redisTemplate.opsForValue().set(availableKey, String.valueOf(slot.availableCount()));
+            List<Long> bookedUserIds = bookingRecordRepository.findReservedUserIdsBySlot(slot.id());
+            if (!bookedUserIds.isEmpty()) {
+                redisTemplate.opsForSet().add(
+                        RedisKeys.slotBookedUsers(slot.id()),
+                        bookedUserIds.stream().map(String::valueOf).toArray(String[]::new)
+                );
+            }
             log.info(
-                    "event=redis.stock.warmup.slot.init slotId={} key={} availableCount={}",
+                    "event=redis.stock.warmup.slot.init slotId={} key={} availableCount={} bookedUserCount={}",
                     slot.id(),
                     availableKey,
-                    slot.availableCount()
+                    slot.availableCount(),
+                    bookedUserIds.size()
             );
             return WarmUpResult.INITIALIZED;
         } catch (Exception e) {

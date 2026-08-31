@@ -1,10 +1,12 @@
 package com.wrx.booking.support;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-public class DemoUserContext {
+@Profile("!perf")
+public class DemoUserContext implements CurrentUserProvider {
 
     private final Long userId;
     private final String userName;

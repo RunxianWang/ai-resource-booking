@@ -23,4 +23,12 @@ public class RedisLuaConfig {
         script.setResultType(Long.class);
         return script;
     }
+
+    @Bean
+    public DefaultRedisScript<Long> compensateBookingScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/compensate_booking.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
 }
