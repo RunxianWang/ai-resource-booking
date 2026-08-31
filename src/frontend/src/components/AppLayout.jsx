@@ -1,21 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Cpu, UserRound } from 'lucide-react';
-import { navItems } from '@/nav-items';
-import { getCurrentUser } from '@/services/reservationApi';
-
-const fallbackUser = { userId: 1, userName: '演示用户 1' };
+import { Cpu, LogOut, UserRound } from 'lucide-react';
+import { adminNavItems, navItems } from '@/nav-items';
+import { useAuth } from '@/auth/AuthContext';
+import { Button } from '@/components/ui/button';
 
 export const AppLayout = ({ children }) => {
-  const currentUserQuery = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: async () => {
-      const res = await getCurrentUser();
-      return res.data;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-  const currentUser = currentUserQuery.data || fallbackUser;
+  const { user: currentUser, signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
@@ -47,6 +37,7 @@ export const AppLayout = ({ children }) => {
               {item.title}
             </NavLink>
           ))}
+          {currentUser?.roles?.includes('ADMIN') && <div className="mt-5 border-t border-slate-100 pt-4"><div className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">管理员</div>{adminNavItems.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => ['flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors', isActive ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'].join(' ')}>{item.icon}{item.title}</NavLink>)}</div>}
         </nav>
       </aside>
 
@@ -57,9 +48,13 @@ export const AppLayout = ({ children }) => {
               <div className="text-sm font-semibold lg:hidden">算力预约平台</div>
               <div className="hidden text-sm text-slate-500 lg:block">AI compute resource booking</div>
             </div>
-            <div className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700">
               <UserRound className="h-4 w-4" />
-              当前用户：{currentUser.userName}
+              当前用户：{currentUser?.username || currentUser?.userName}
+              {currentUser?.roles?.includes('ADMIN') && <span className="rounded bg-slate-900 px-1.5 py-0.5 text-xs text-white">管理员</span>}
+              </div>
+              <Button variant="outline" size="sm" onClick={signOut}><LogOut className="mr-1.5 h-4 w-4" />退出</Button>
             </div>
           </div>
           <nav className="flex gap-2 border-t border-slate-100 px-4 py-2 lg:hidden">
@@ -78,6 +73,7 @@ export const AppLayout = ({ children }) => {
                 {item.title}
               </NavLink>
             ))}
+            {currentUser?.roles?.includes('ADMIN') && adminNavItems.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => ['flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium', isActive ? 'bg-slate-950 text-white' : 'text-slate-600'].join(' ')}>{item.icon}{item.title}</NavLink>)}
           </nav>
         </header>
 

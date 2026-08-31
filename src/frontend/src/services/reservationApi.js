@@ -1,5 +1,11 @@
 import { api } from '@/lib/api';
 
+export const login = (username, password) => api.post('/auth/login', { username, password });
+export const register = (username, password) => api.post('/auth/register', { username, password });
+export const logout = () => api.post('/auth/logout');
+export const listAdminMachines = () => api.get('/admin/machines');
+export const updateMachineStatus = (id, status) => api.patch(`/admin/machines/${id}/status`, { status });
+
 export const getCurrentUser = () => api.get('/users/me');
 
 export const listSlots = () => api.get('/slots');
