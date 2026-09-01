@@ -42,7 +42,7 @@ public class BookingController {
                     request.slotId()
             );
         }
-        return bookingService.book(demoUserId, request.slotId());
+        return bookingService.book(demoUserId, request.slotId(), request.durationHours());
     }
 
     @PostMapping("/{bookingId}/cancel")

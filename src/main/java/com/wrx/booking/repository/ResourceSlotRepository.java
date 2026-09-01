@@ -78,6 +78,23 @@ public class ResourceSlotRepository {
         return list.stream().findFirst();
     }
 
+    public Optional<ResourceSlot> findByMachineAndStartTime(Long machineId, LocalDateTime startTime) {
+        List<ResourceSlot> list = jdbcTemplate.query(
+                """
+                SELECT id, machine_id, resource_name, resource_type, start_time, end_time,
+                       total_count, available_count, status
+                FROM resource_slot
+                WHERE machine_id = ? AND start_time = ?
+                """,
+                (rs, rowNum) -> new ResourceSlot(
+                        rs.getLong("id"), rs.getLong("machine_id"), rs.getString("resource_name"),
+                        rs.getString("resource_type"), rs.getTimestamp("start_time").toLocalDateTime(),
+                        rs.getTimestamp("end_time").toLocalDateTime(), rs.getInt("total_count"),
+                        rs.getInt("available_count"), rs.getString("status")
+                ), machineId, startTime);
+        return list.stream().findFirst();
+    }
+
     public List<ResourceSlotCatalog> findAllForCatalog() {
         return jdbcTemplate.query(
                 """
@@ -86,7 +103,10 @@ public class ResourceSlotRepository {
                        resource_slot.available_count, resource_slot.status
                 FROM resource_slot
                 JOIN resource_machine m ON m.id = resource_slot.machine_id AND m.status = 'ACTIVE'
-                WHERE resource_slot.end_time > NOW()
+                WHERE DATE(resource_slot.start_time) = CURRENT_DATE
+                  AND resource_slot.start_time >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00') + INTERVAL 1 HOUR
+                  AND resource_slot.end_time <= DATE_ADD(CURRENT_DATE, INTERVAL 1 DAY)
+                  AND resource_slot.end_time > NOW()
                   AND resource_slot.status <> 'FINISHED'
                 ORDER BY resource_slot.machine_id ASC, resource_slot.start_time ASC, resource_slot.id ASC
                 """,
@@ -112,7 +132,10 @@ public class ResourceSlotRepository {
                        resource_slot.available_count, resource_slot.status
                 FROM resource_slot
                 JOIN resource_machine m ON m.id = resource_slot.machine_id AND m.status = 'ACTIVE'
-                WHERE resource_slot.end_time > NOW()
+                WHERE DATE(resource_slot.start_time) = CURRENT_DATE
+                  AND resource_slot.start_time >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00') + INTERVAL 1 HOUR
+                  AND resource_slot.end_time <= DATE_ADD(CURRENT_DATE, INTERVAL 1 DAY)
+                  AND resource_slot.end_time > NOW()
                   AND resource_slot.status <> 'FINISHED'
                 ORDER BY resource_slot.machine_id ASC, resource_slot.start_time ASC, resource_slot.id ASC
                 """,

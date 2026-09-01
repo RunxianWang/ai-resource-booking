@@ -23,7 +23,7 @@ import java.util.List;
 public class ResourceSlotLifecycleScheduler implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ResourceSlotLifecycleScheduler.class);
-    private static final int FUTURE_SLOT_HOURS = 24;
+    private static final int FUTURE_SLOT_HOURS = 23;
 
     private final ResourceMachineRepository resourceMachineRepository;
     private final ResourceSlotRepository resourceSlotRepository;
@@ -53,6 +53,7 @@ public class ResourceSlotLifecycleScheduler implements ApplicationRunner {
         LocalDateTime firstStart = LocalDateTime.now()
                 .truncatedTo(ChronoUnit.HOURS)
                 .plusHours(1);
+        LocalDateTime endOfToday = LocalDateTime.now().toLocalDate().plusDays(1).atStartOfDay();
         List<ResourceMachine> machines = resourceMachineRepository.findActiveMachines();
 
         int createdCount = 0;
@@ -64,6 +65,7 @@ public class ResourceSlotLifecycleScheduler implements ApplicationRunner {
             for (int i = 0; i < FUTURE_SLOT_HOURS; i++) {
                 LocalDateTime startTime = firstStart.plusHours(i);
                 LocalDateTime endTime = startTime.plusHours(1);
+                if (!startTime.isBefore(endOfToday)) break;
 
                 boolean created = resourceSlotRepository.insertSlotIgnoreDuplicate(machine, startTime, endTime);
                 if (created) {

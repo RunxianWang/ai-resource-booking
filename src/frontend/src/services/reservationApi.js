@@ -14,9 +14,11 @@ export const queryInventory = (slotId) => api.get(`/slots/${slotId}`);
 
 export const warmupSlot = (slotId) => api.post(`/slots/${slotId}/warmup`);
 
-export const createBooking = (slotIdOrUserId, maybeSlotId) => {
-  const slotId = maybeSlotId ?? slotIdOrUserId;
-  return api.post('/bookings', { slotId: Number(slotId) });
+export const createBooking = (slotIdOrUserId, maybeDurationHours) => {
+  return api.post('/bookings', {
+    slotId: Number(slotIdOrUserId),
+    durationHours: Number(maybeDurationHours ?? 1),
+  });
 };
 
 export const listMyBookings = () => api.get('/bookings/my');

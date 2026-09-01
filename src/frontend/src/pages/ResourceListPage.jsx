@@ -20,7 +20,6 @@ import {
   getErrorPayload,
   isBookableSlot,
   isWithinBookingWindow,
-  statusLabel,
 } from '@/lib/format';
 
 const fallbackUser = { userId: 1, userName: '演示用户 1' };
@@ -75,6 +74,16 @@ const buildMachineGroups = (slots, now) => {
     .sort((left, right) => left.machineName.localeCompare(right.machineName, 'zh-CN'));
 };
 
+const durationsFor = (machine, slot, now) => {
+  const start = machine.visibleSlots.findIndex((candidate) => candidate.id === slot.id);
+  return [1, 2, 4].filter((hours) => {
+    const chain = machine.visibleSlots.slice(start, start + hours);
+    return chain.length === hours && chain.every((candidate, index) =>
+      isBookableSlot(candidate, now) && (index === 0 || new Date(candidate.startTime).getTime() === new Date(chain[index - 1].endTime).getTime())
+    );
+  });
+};
+
 const MachineMetric = ({ label, value }) => (
   <div className="rounded-md bg-slate-50 px-3 py-2">
     <div className="text-xs text-slate-500">{label}</div>
@@ -102,7 +111,7 @@ const MachineCard = ({ machine, now, onOpen }) => {
             </div>
           </div>
           <Badge variant={canReserve ? 'default' : 'secondary'}>
-            {canReserve ? '可预约' : '12小时内暂无可预约时段'}
+            {canReserve ? '可预约' : '今天暂无可预约时段'}
           </Badge>
         </div>
       </CardHeader>
@@ -113,7 +122,7 @@ const MachineCard = ({ machine, now, onOpen }) => {
             label="最近可预约时段"
             value={machine.nextAvailableSlot ? formatSlotRange(machine.nextAvailableSlot.startTime, machine.nextAvailableSlot.endTime, now) : '-'}
           />
-          <MachineMetric label="12小时内可约" value={`${machine.bookableSlots.length} 个时段`} />
+          <MachineMetric label="今天剩余可约" value={`${machine.bookableSlots.length} 个时段`} />
         </div>
 
         <Button className="w-full" disabled={!canReserve} onClick={() => onOpen(machine.key)}>
@@ -150,6 +159,7 @@ export const ResourceListPage = () => {
   const [selectedMachineKey, setSelectedMachineKey] = useState(null);
   const [pendingSlot, setPendingSlot] = useState(null);
   const [bookingResult, setBookingResult] = useState(null);
+  const [durationHours, setDurationHours] = useState(1);
 
   const currentUserQuery = useQuery({
     queryKey: ['currentUser'],
@@ -169,6 +179,8 @@ export const ResourceListPage = () => {
     },
   });
 
+  // Recalculate the booking boundary whenever the slot query refreshes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const now = useMemo(() => new Date(), [slotsQuery.dataUpdatedAt]);
   const machines = useMemo(() => buildMachineGroups(slotsQuery.data || [], now), [slotsQuery.data, now]);
   const selectedMachine = machines.find((machine) => machine.key === selectedMachineKey) || null;
@@ -185,7 +197,7 @@ export const ResourceListPage = () => {
 
   const reserveMutation = useMutation({
     mutationFn: async () => {
-      const res = await createBooking(pendingSlot.id);
+      const res = await createBooking(pendingSlot.id, durationHours);
       return res.data;
     },
     onSuccess: async (data) => {
@@ -230,7 +242,7 @@ export const ResourceListPage = () => {
           </div>
           <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950">选择 GPU 机器和预约时段</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-500">
-            每台机器展示为一张资源卡片，点击后选择未来 12 小时内的一小时时段。
+            只展示今天尚未开始的完整小时，可连续预约 1、2 或 4 小时。
           </p>
         </div>
         <Button variant="outline" onClick={() => slotsQuery.refetch()} disabled={slotsQuery.isFetching}>
@@ -279,7 +291,7 @@ export const ResourceListPage = () => {
               <DialogHeader>
                 <DialogTitle>选择预约时段</DialogTitle>
                 <DialogDescription>
-                  {selectedMachine?.machineName} 未来 12 小时内的可预约窗口。
+                  {selectedMachine?.machineName} 今天剩余的可预约窗口。
                 </DialogDescription>
               </DialogHeader>
 
@@ -308,6 +320,7 @@ export const ResourceListPage = () => {
                       now={now}
                       onSelect={(nextSlot) => {
                         setPendingSlot(nextSlot);
+                        setDurationHours(1);
                         setBookingResult(null);
                       }}
                       reserving={reserveMutation.isPending}
@@ -315,7 +328,7 @@ export const ResourceListPage = () => {
                   ))
                 ) : (
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                    未来 12 小时内暂无可查看时段
+                    今天暂无可查看时段
                   </div>
                 )}
               </div>
@@ -348,6 +361,19 @@ export const ResourceListPage = () => {
                 <div className="flex items-center gap-2 rounded-md border border-slate-200 p-3 text-sm text-slate-700">
                   <UserRound className="h-4 w-4" />
                   当前用户：{currentUser.userName}
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm font-medium text-slate-700">预约时长</div>
+                  <div className="flex gap-2">
+                    {[1, 2, 4].map((hours) => {
+                      const enabled = durationsFor(selectedMachine, pendingSlot, now).includes(hours);
+                      return <Button key={hours} type="button" variant={durationHours === hours ? 'default' : 'outline'}
+                        disabled={!enabled || reserveMutation.isPending} onClick={() => setDurationHours(hours)}>
+                        {hours} 小时
+                      </Button>;
+                    })}
+                  </div>
                 </div>
 
                 {bookingResult && bookingResult.code !== 'SUCCESS' && (

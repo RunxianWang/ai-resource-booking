@@ -166,7 +166,7 @@ export const useReservation = () => {
   const handleBook = useCallback(async (targetUserId = userId, targetSlotId = slotId) => {
     setLoading(true);
     try {
-      const res = await createBooking(targetUserId, targetSlotId);
+      const res = await createBooking(targetSlotId, 1);
       setDebugResult({ action: '提交预约', ...res.data });
       const result = makeBookingResult(res.data, targetUserId, targetSlotId);
       setBusinessResult(result);

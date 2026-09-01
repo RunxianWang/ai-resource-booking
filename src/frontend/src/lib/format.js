@@ -43,14 +43,18 @@ export const formatSlotRange = (startValue, endValue, baseValue = new Date()) =>
   return `${prefix} ${pad2(start.getHours())}:${pad2(start.getMinutes())} - ${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
 };
 
-export const isWithinBookingWindow = (slot, nowValue = new Date(), hours = 12) => {
+export const isWithinBookingWindow = (slot, nowValue = new Date()) => {
   const now = toDate(nowValue) || new Date();
   const start = toDate(slot?.startTime);
   const end = toDate(slot?.endTime);
   if (!start || !end) return false;
 
-  const horizon = new Date(now.getTime() + hours * 60 * 60 * 1000);
-  return end > now && start < horizon;
+  const nextHour = new Date(now);
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return start >= nextHour && end <= midnight && isSameDate(start, now);
 };
 
 export const isBookableSlot = (slot, nowValue = new Date()) =>

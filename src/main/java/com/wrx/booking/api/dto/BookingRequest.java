@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 
 public record BookingRequest(
         Long userId,
-        @NotNull Long slotId
+        @NotNull Long slotId,
+        Integer durationHours
 ) {
 }

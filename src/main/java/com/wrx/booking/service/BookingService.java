@@ -19,6 +19,10 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class BookingService {
@@ -47,27 +51,60 @@ public class BookingService {
     }
 
     public BookingResponse book(Long userId, Long slotId) {
+        return book(userId, slotId, 1);
+    }
+
+    public BookingResponse book(Long userId, Long slotId, Integer requestedDurationHours) {
         long start = System.currentTimeMillis();
+        int durationHours = requestedDurationHours == null ? 1 : requestedDurationHours;
+        if (durationHours != 1 && durationHours != 2 && durationHours != 4) {
+            return BookingResponse.fail(ErrorCode.INVALID_DURATION, "durationHours must be one of 1, 2, 4", userId, slotId);
+        }
         ResourceSlot slot = resourceSlotRepository.findById(slotId).orElse(null);
         if (slot == null) return BookingResponse.fail(ErrorCode.RESOURCE_NOT_FOUND, "slot not found: " + slotId, userId, slotId);
-        if (bookingRecordRepository.existsByUserAndSlot(userId, slotId)) {
-            return BookingResponse.fail(ErrorCode.DUPLICATE_BOOKING, "MySQL booking_record already has user slot record", userId, slotId);
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime nextHour = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS).plusHours(1);
+        if (!slot.startTime().toLocalDate().equals(today)
+                || slot.startTime().isBefore(nextHour)
+                || slot.endTime().isAfter(today.plusDays(1).atStartOfDay())) {
+            return BookingResponse.fail(ErrorCode.SLOT_NOT_BOOKABLE, "slot must be a complete future slot on today", userId, slotId);
         }
 
-        Long result = redisTemplate.execute(reserveBookingScript,
-                List.of(RedisKeys.slotAvailable(slotId), RedisKeys.slotBookedUsers(slotId)), String.valueOf(userId));
+        List<ResourceSlot> slots = new java.util.ArrayList<>();
+        for (int i = 0; i < durationHours; i++) {
+            ResourceSlot current = i == 0 ? slot : resourceSlotRepository
+                    .findByMachineAndStartTime(slot.machineId(), slot.startTime().plusHours(i)).orElse(null);
+            if (current == null || !current.startTime().equals(slot.startTime().plusHours(i))
+                    || !current.endTime().equals(current.startTime().plusHours(1))
+                    || !current.endTime().toLocalDate().equals(today)
+                    || current.availableCount() <= 0
+                    || !ResourceSlotRepository.STATUS_AVAILABLE.equals(current.status())
+                    || bookingRecordRepository.existsByUserAndSlot(userId, current.id())) {
+                return BookingResponse.fail(i == 0 ? ErrorCode.SLOT_NOT_BOOKABLE : ErrorCode.NON_CONTIGUOUS_SLOTS,
+                        "requested duration has no continuous available slots", userId, slotId);
+            }
+            slots.add(current);
+        }
+
+        List<String> keys = new java.util.ArrayList<>();
+        slots.forEach(current -> {
+            keys.add(RedisKeys.slotAvailable(current.id()));
+            keys.add(RedisKeys.slotBookedUsers(current.id()));
+        });
+        Long result = redisTemplate.execute(reserveBookingScript, keys, String.valueOf(userId));
         if (result == null) return BookingResponse.fail(ErrorCode.REDIS_ERROR, "Redis Lua returned null", userId, slotId);
         if (result == -2L) return BookingResponse.fail(ErrorCode.NOT_WARMED_UP, "Redis inventory key not found, warm up the slot first", userId, slotId);
         if (result == -1L) return BookingResponse.fail(ErrorCode.DUPLICATE_BOOKING, "Redis booked user set rejected duplicate user", userId, slotId);
         if (result == 0L) return BookingResponse.fail(ErrorCode.SOLD_OUT, "Redis inventory is less than or equal to zero", userId, slotId);
 
         try {
-            BookingResponse response = transactionService.createBooking(userId, slotId);
-            if (!ErrorCode.SUCCESS.code().equals(response.code())) compensateRedis(slot, userId);
+            BookingResponse response = transactionService.createBooking(userId, slots);
+            if (!ErrorCode.SUCCESS.code().equals(response.code())) slots.forEach(current -> compensateRedis(current, userId));
             log.info("event=booking.result traceId={} userId={} slotId={} code={} costMs={}", TraceContext.traceId(), userId, slotId, response.code(), System.currentTimeMillis() - start);
             return response;
         } catch (RuntimeException e) {
-            compensateRedis(slot, userId);
+            slots.forEach(current -> compensateRedis(current, userId));
             log.error("event=booking.exception traceId={} userId={} slotId={} reason={}", TraceContext.traceId(), userId, slotId, e.getMessage(), e);
             throw e;
         }
