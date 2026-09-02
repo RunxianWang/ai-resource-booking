@@ -6,6 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'import-local-env.ps1')
+Import-LocalEnv -Path (Join-Path $root '.env')
 $frontend = Join-Path $root "src\frontend"
 $target = Join-Path $root "target"
 $pidDirectory = Join-Path $target "dev-pids"
@@ -124,11 +126,12 @@ function Start-Application {
     }
 
     Require-Command -Name "java"
+    Require-Command -Name "mvn"
     Require-Command -Name "npm"
 
     if (-not (Test-PortListening -Port 8080)) {
         Write-Host "Starting Spring Boot on http://localhost:8080 ..."
-        $backend = Start-Process -FilePath (Join-Path $root "mvnw.cmd") `
+        $backend = Start-Process -FilePath "mvn.cmd" `
             -ArgumentList "spring-boot:run" `
             -WorkingDirectory $root `
             -RedirectStandardOutput (Join-Path $target "app-run.log") `

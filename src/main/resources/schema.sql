@@ -58,9 +58,11 @@ CREATE TABLE IF NOT EXISTS booking_record (
                                               slot_id BIGINT NOT NULL,
                                               machine_id BIGINT NOT NULL,
                                               status VARCHAR(32) NOT NULL DEFAULT 'RESERVED',
+                                              active_user_id BIGINT GENERATED ALWAYS AS (CASE WHEN status = 'RESERVED' THEN user_id ELSE NULL END) STORED,
+                                              active_slot_id BIGINT GENERATED ALWAYS AS (CASE WHEN status = 'RESERVED' THEN slot_id ELSE NULL END) STORED,
                                               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                               updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                                              UNIQUE KEY uk_user_slot (user_id, slot_id),
+                                              UNIQUE KEY uk_active_user_slot (active_user_id, active_slot_id),
                                               INDEX idx_slot_id (slot_id),
                                               INDEX idx_machine_id (machine_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

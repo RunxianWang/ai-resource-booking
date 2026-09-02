@@ -31,14 +31,16 @@ public class DeadLetterService {
         if (!"PENDING".equals(log.status())) {
             throw new IllegalStateException("dead letter is not pending: " + log.status());
         }
+        if (repository.claimForReplay(id) == 0) {
+            throw new IllegalStateException("dead letter is already being handled: " + id);
+        }
         try {
             kafkaTemplate.send(log.originalTopic(), log.messageKey(), log.payload()).get();
         } catch (Exception e) {
+            repository.releaseReplay(id);
             throw new IllegalStateException("dead letter replay failed", e);
         }
-        if (repository.markReplayed(id) == 0) {
-            throw new IllegalStateException("dead letter was already handled: " + id);
-        }
+        repository.markReplayed(id);
         return repository.findById(id);
     }
 

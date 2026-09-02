@@ -70,6 +70,11 @@ APP_FAULT_INJECTION_POINT=projection-update
 
 ## 启动方式
 
+### 配置本地环境变量
+
+先复制 `.env.example` 为 `.env`，填写本机数据库账号、密码、JWT 密钥和初始化管理员信息。
+`.env` 已被 Git 忽略，不要将真实值提交到仓库。项目启动脚本和一键测试脚本会自动读取该文件；直接使用 Maven 启动时，需要先将这些变量导入当前终端环境。
+
 ### 启动中间件
 在项目根目录终端执行
 docker compose up -d

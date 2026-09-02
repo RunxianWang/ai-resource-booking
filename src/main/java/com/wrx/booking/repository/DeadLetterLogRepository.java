@@ -58,7 +58,21 @@ public class DeadLetterLogRepository {
 
     public int markReplayed(long id) {
         return jdbcTemplate.update(
-                "UPDATE dead_letter_log SET status = 'REPLAYED', replay_count = replay_count + 1, replayed_at = NOW() WHERE id = ? AND status = 'PENDING'",
+                "UPDATE dead_letter_log SET status = 'REPLAYED', replay_count = replay_count + 1, replayed_at = NOW() WHERE id = ? AND status = 'REPLAYING'",
+                id
+        );
+    }
+
+    public int claimForReplay(long id) {
+        return jdbcTemplate.update(
+                "UPDATE dead_letter_log SET status = 'REPLAYING' WHERE id = ? AND status = 'PENDING'",
+                id
+        );
+    }
+
+    public int releaseReplay(long id) {
+        return jdbcTemplate.update(
+                "UPDATE dead_letter_log SET status = 'PENDING' WHERE id = ? AND status = 'REPLAYING'",
                 id
         );
     }

@@ -10,8 +10,8 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn } = useAuth();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

@@ -52,6 +52,7 @@ public class BookingRecordRepository {
                 FROM booking_record
                 WHERE user_id = ?
                   AND slot_id = ?
+                  AND status = 'RESERVED'
                 """,
                 Integer.class,
                 userId,

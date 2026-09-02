@@ -47,8 +47,6 @@ public class ResourceSlotSchemaInitializer implements InitializingBean {
                         ELSE CONCAT('GPU Machine ', COALESCE(machine_id, resource_id, id))
                     END,
                     resource_type = COALESCE(resource_type, 'GPU'),
-                    total_count = 1,
-                    available_count = CASE WHEN status IN ('OPEN', 'AVAILABLE') AND end_time > NOW() THEN 1 ELSE 0 END,
                     status = CASE
                         WHEN status IN ('SUCCESS', 'RESERVED') THEN 'RESERVED'
                         WHEN status IN ('CANCELED', 'CANCELLED') THEN 'CANCELLED'
@@ -58,7 +56,6 @@ public class ResourceSlotSchemaInitializer implements InitializingBean {
                 WHERE machine_id IS NULL
                    OR resource_name IS NULL
                    OR resource_type IS NULL
-                   OR total_count <> 1
                    OR status IN ('OPEN', 'SUCCESS', 'CANCELED')
                 """
         );

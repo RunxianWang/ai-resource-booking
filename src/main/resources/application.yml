@@ -6,9 +6,9 @@ spring:
     name: ai-resource-booking
 
   datasource:
-    url: jdbc:mysql://localhost:3307/wrx_booking?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: root
+    url: ${BOOKING_DB_URL}
+    username: ${BOOKING_DB_USERNAME}
+    password: ${BOOKING_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   sql:
@@ -38,3 +38,9 @@ spring:
 
     listener:
       ack-mode: record
+
+app:
+  jwt-secret: ${APP_JWT_SECRET}
+  jwt-expiration-seconds: ${APP_JWT_EXPIRATION_SECONDS:7200}
+  bootstrap-admin-username: ${APP_BOOTSTRAP_ADMIN_USERNAME}
+  bootstrap-admin-password: ${APP_BOOTSTRAP_ADMIN_PASSWORD}

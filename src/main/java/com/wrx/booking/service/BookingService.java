@@ -14,6 +14,7 @@ import com.wrx.booking.support.TraceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -35,19 +36,25 @@ public class BookingService {
     private final ResourceSlotRepository resourceSlotRepository;
     private final BookingRecordRepository bookingRecordRepository;
     private final BookingTransactionService transactionService;
+    private final boolean faultInjectionEnabled;
+    private final String faultPoint;
 
     public BookingService(StringRedisTemplate redisTemplate,
                           @Qualifier("reserveBookingScript") DefaultRedisScript<Long> reserveBookingScript,
                           @Qualifier("compensateBookingScript") DefaultRedisScript<Long> compensateBookingScript,
                           ResourceSlotRepository resourceSlotRepository,
                           BookingRecordRepository bookingRecordRepository,
-                          BookingTransactionService transactionService) {
+                          BookingTransactionService transactionService,
+                          @Value("${app.fault-injection.enabled:false}") boolean faultInjectionEnabled,
+                          @Value("${app.fault-injection.point:none}") String faultPoint) {
         this.redisTemplate = redisTemplate;
         this.reserveBookingScript = reserveBookingScript;
         this.compensateBookingScript = compensateBookingScript;
         this.resourceSlotRepository = resourceSlotRepository;
         this.bookingRecordRepository = bookingRecordRepository;
         this.transactionService = transactionService;
+        this.faultInjectionEnabled = faultInjectionEnabled;
+        this.faultPoint = faultPoint;
     }
 
     public BookingResponse book(Long userId, Long slotId) {
@@ -75,12 +82,20 @@ public class BookingService {
         for (int i = 0; i < durationHours; i++) {
             ResourceSlot current = i == 0 ? slot : resourceSlotRepository
                     .findByMachineAndStartTime(slot.machineId(), slot.startTime().plusHours(i)).orElse(null);
+            if (current != null && bookingRecordRepository.existsByUserAndSlot(userId, current.id())) {
+                return BookingResponse.fail(ErrorCode.DUPLICATE_BOOKING,
+                        "user already has a booking for one of the requested slots", userId, slotId);
+            }
             if (current == null || !current.startTime().equals(slot.startTime().plusHours(i))
                     || !current.endTime().equals(current.startTime().plusHours(1))
-                    || !current.endTime().toLocalDate().equals(today)
-                    || current.availableCount() <= 0
-                    || !ResourceSlotRepository.STATUS_AVAILABLE.equals(current.status())
-                    || bookingRecordRepository.existsByUserAndSlot(userId, current.id())) {
+                    || !current.endTime().toLocalDate().equals(today)) {
+                return BookingResponse.fail(i == 0 ? ErrorCode.SLOT_NOT_BOOKABLE : ErrorCode.NON_CONTIGUOUS_SLOTS,
+                        "requested duration has no continuous available slots", userId, slotId);
+            }
+            if (current.availableCount() <= 0) {
+                return BookingResponse.fail(ErrorCode.SOLD_OUT, "slot inventory is exhausted", userId, slotId);
+            }
+            if (!ResourceSlotRepository.STATUS_AVAILABLE.equals(current.status())) {
                 return BookingResponse.fail(i == 0 ? ErrorCode.SLOT_NOT_BOOKABLE : ErrorCode.NON_CONTIGUOUS_SLOTS,
                         "requested duration has no continuous available slots", userId, slotId);
             }
@@ -99,6 +114,7 @@ public class BookingService {
         if (result == 0L) return BookingResponse.fail(ErrorCode.SOLD_OUT, "Redis inventory is less than or equal to zero", userId, slotId);
 
         try {
+            failIfConfigured("redis-after-reserve");
             BookingResponse response = transactionService.createBooking(userId, slots);
             if (!ErrorCode.SUCCESS.code().equals(response.code())) slots.forEach(current -> compensateRedis(current, userId));
             log.info("event=booking.result traceId={} userId={} slotId={} code={} costMs={}", TraceContext.traceId(), userId, slotId, response.code(), System.currentTimeMillis() - start);
@@ -107,6 +123,12 @@ public class BookingService {
             slots.forEach(current -> compensateRedis(current, userId));
             log.error("event=booking.exception traceId={} userId={} slotId={} reason={}", TraceContext.traceId(), userId, slotId, e.getMessage(), e);
             throw e;
+        }
+    }
+
+    private void failIfConfigured(String point) {
+        if (faultInjectionEnabled && point.equalsIgnoreCase(faultPoint)) {
+            throw new IllegalStateException("Injected failure at " + point);
         }
     }
 

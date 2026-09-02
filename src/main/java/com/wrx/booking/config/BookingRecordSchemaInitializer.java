@@ -28,6 +28,13 @@ public class BookingRecordSchemaInitializer implements InitializingBean {
         ensureColumn("machine_id", "ALTER TABLE booking_record ADD COLUMN machine_id BIGINT NULL AFTER slot_id");
         ensureColumn("updated_at", "ALTER TABLE booking_record ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at");
 
+        dropIndexIfExists("uk_success_user_slot");
+        dropIndexIfExists("uk_user_slot");
+        dropColumnIfExists("success_user_id");
+        dropColumnIfExists("success_slot_id");
+        ensureColumn("active_user_id", "ALTER TABLE booking_record ADD COLUMN active_user_id BIGINT GENERATED ALWAYS AS (CASE WHEN status = 'RESERVED' THEN user_id ELSE NULL END) STORED AFTER status");
+        ensureColumn("active_slot_id", "ALTER TABLE booking_record ADD COLUMN active_slot_id BIGINT GENERATED ALWAYS AS (CASE WHEN status = 'RESERVED' THEN slot_id ELSE NULL END) STORED AFTER active_user_id");
+
         jdbcTemplate.update(
                 """
                 UPDATE booking_record b
@@ -43,9 +50,8 @@ public class BookingRecordSchemaInitializer implements InitializingBean {
                 """
         );
 
-        dropIndexIfExists("uk_success_user_slot");
         ensureIndex("idx_machine_id", "ALTER TABLE booking_record ADD INDEX idx_machine_id (machine_id)");
-        ensureIndex("uk_user_slot", "ALTER TABLE booking_record ADD UNIQUE KEY uk_user_slot (user_id, slot_id)");
+        ensureIndex("uk_active_user_slot", "ALTER TABLE booking_record ADD UNIQUE KEY uk_active_user_slot (active_user_id, active_slot_id)");
     }
 
     private boolean tableExists(String tableName) {
@@ -76,6 +82,23 @@ public class BookingRecordSchemaInitializer implements InitializingBean {
         );
         if (count == null || count == 0) {
             jdbcTemplate.execute(alterSql);
+        }
+    }
+
+    private void dropColumnIfExists(String columnName) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'booking_record'
+                  AND column_name = ?
+                """,
+                Integer.class,
+                columnName
+        );
+        if (count != null && count > 0) {
+            jdbcTemplate.execute("ALTER TABLE booking_record DROP COLUMN " + columnName);
         }
     }
 

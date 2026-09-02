@@ -6,12 +6,13 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import subprocess
 import threading
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,9 @@ import requests
 
 
 THREAD_STATE = threading.local()
+TEST_MACHINE_ID = 999002
+BOOKING_DB_USERNAME = os.environ.get("BOOKING_DB_USERNAME")
+BOOKING_DB_PASSWORD = os.environ.get("BOOKING_DB_PASSWORD")
 
 
 def http_session() -> requests.Session:
@@ -46,7 +50,9 @@ def call(method: str, url: str, **kwargs: Any) -> dict[str, Any]:
 
 
 def mysql(args: argparse.Namespace, query: str) -> str:
-    command = ["docker", "exec", args.mysql_container, "mysql", "-N", "-B", "-uroot", "-proot", "-D", args.mysql_database, "-e", query]
+    if not BOOKING_DB_USERNAME or not BOOKING_DB_PASSWORD:
+        raise RuntimeError("BOOKING_DB_USERNAME and BOOKING_DB_PASSWORD must be set")
+    command = ["docker", "exec", args.mysql_container, "mysql", "-N", "-B", f"-u{BOOKING_DB_USERNAME}", f"-p{BOOKING_DB_PASSWORD}", "-D", args.mysql_database, "-e", query]
     result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=True)
     return result.stdout.strip()
 
@@ -57,22 +63,59 @@ def redis(args: argparse.Namespace, command: str, *values: str) -> str:
 
 
 def prepare_fixture(args: argparse.Namespace) -> None:
+    first = datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    start_time = first.strftime("%Y-%m-%d %H:%M:%S")
+    end_time = (first + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
     query = f"""
+INSERT IGNORE INTO resource_machine(id, machine_name, resource_type, gpu_model, status)
+VALUES ({TEST_MACHINE_ID}, 'AUTOMATED-BASE-CHAIN-TEST', 'GPU', 'TEST', 'ACTIVE');
 INSERT INTO resource_slot(id, machine_id, resource_id, resource_name, resource_type,
                           start_time, end_time, total_count, available_count, status)
-VALUES ({args.slot_id}, 1, 1, 'BASE-CHAIN-TEST', 'GPU', '2099-01-01 00:00:00',
-        '2099-01-01 01:00:00', {args.capacity}, {args.capacity}, 'AVAILABLE')
+VALUES ({args.slot_id}, {TEST_MACHINE_ID}, 1, 'BASE-CHAIN-TEST', 'GPU', '{start_time}',
+        '{end_time}', {args.capacity}, {args.capacity}, 'AVAILABLE')
 ON DUPLICATE KEY UPDATE total_count={args.capacity}, available_count={args.capacity}, status='AVAILABLE';
 DELETE c FROM consume_log c
 JOIN message_log m ON m.message_key = c.message_key
 JOIN booking_record b ON b.id = m.booking_id
 WHERE b.slot_id = {args.slot_id};
 DELETE m FROM message_log m JOIN booking_record b ON b.id = m.booking_id WHERE b.slot_id = {args.slot_id};
+DELETE a FROM booking_event_audit a
+JOIN booking_record b ON b.id = a.booking_id
+WHERE b.slot_id = {args.slot_id};
+DELETE p FROM booking_event_projection p
+JOIN booking_record b ON b.id = p.booking_id
+WHERE b.slot_id = {args.slot_id};
+DELETE d FROM dead_letter_log d
+WHERE JSON_VALID(d.payload) = 1
+  AND JSON_UNQUOTE(JSON_EXTRACT(d.payload, '$.slotId')) = '{args.slot_id}';
 DELETE FROM booking_record WHERE slot_id = {args.slot_id};
 UPDATE resource_slot SET total_count={args.capacity}, available_count={args.capacity}, status='AVAILABLE' WHERE id={args.slot_id};
 """
     mysql(args, query)
     call("POST", f"{args.base_url}/api/slots/{args.slot_id}/warmup")
+
+
+def cleanup_fixture(args: argparse.Namespace) -> None:
+    query = f"""
+DELETE c FROM consume_log c
+JOIN message_log m ON m.message_key = c.message_key
+JOIN booking_record b ON b.id = m.booking_id
+WHERE b.slot_id = {args.slot_id};
+DELETE m FROM message_log m JOIN booking_record b ON b.id = m.booking_id WHERE b.slot_id = {args.slot_id};
+DELETE a FROM booking_event_audit a
+JOIN booking_record b ON b.id = a.booking_id
+WHERE b.slot_id = {args.slot_id};
+DELETE p FROM booking_event_projection p
+JOIN booking_record b ON b.id = p.booking_id
+WHERE b.slot_id = {args.slot_id};
+DELETE d FROM dead_letter_log d
+WHERE JSON_VALID(d.payload) = 1
+  AND JSON_UNQUOTE(JSON_EXTRACT(d.payload, '$.slotId')) = '{args.slot_id}';
+DELETE FROM booking_record WHERE slot_id = {args.slot_id};
+DELETE FROM resource_slot WHERE id = {args.slot_id};
+DELETE FROM resource_machine WHERE id = {TEST_MACHINE_ID};
+"""
+    mysql(args, query)
 
 
 def state(args: argparse.Namespace) -> dict[str, Any]:
@@ -116,7 +159,10 @@ def run(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[str, Any]]]
     results.sort(key=lambda item: item["user_id"])
     deadline = time.time() + args.message_wait_seconds
     after = state(args)
-    while time.time() < deadline and after["verify"].get("messageConsistent") is not True:
+    while time.time() < deadline and (
+        after["verify"].get("messageConsistent") is not True
+        or after["verify"].get("consumedMessageCount") != after["verify"].get("messageLogCount")
+    ):
         time.sleep(0.5)
         after = state(args)
     counts: dict[str, int] = {}
@@ -137,7 +183,10 @@ def run(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[str, Any]]]
         "redis_users": after.get("redis_users"),
         "reserved_count": verify.get("successBookingCount"), "stock_consistent": verify.get("stockConsistent"),
         "expected_booked": expected_booked,
-        "pass": booked == expected_booked and verify.get("stockConsistent") is True and verify.get("messageConsistent") is True and metrics_safe(slot, verify, after),
+        "pass": booked == expected_booked and verify.get("stockConsistent") is True
+        and verify.get("messageConsistent") is True
+        and verify.get("consumedMessageCount") == verify.get("messageLogCount")
+        and metrics_safe(slot, verify, after),
         "before": before, "after": after,
     }
     return metrics, results
@@ -181,7 +230,7 @@ def write_outputs(args: argparse.Namespace, metrics: dict[str, Any], results: li
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:8080")
-    parser.add_argument("--slot-id", type=int, default=900001)
+    parser.add_argument("--slot-id", type=int, default=990001)
     parser.add_argument("--capacity", type=int, default=100)
     parser.add_argument("--requests", type=int, default=500)
     parser.add_argument("--concurrency", type=int, default=100)
@@ -192,10 +241,13 @@ def main() -> int:
     parser.add_argument("--message-wait-seconds", type=int, default=30)
     args = parser.parse_args()
     try:
-        metrics, results = run(args)
-        output = write_outputs(args, metrics, results)
-        print(json.dumps({"output": str(output), **metrics}, ensure_ascii=False, indent=2))
-        return 0 if metrics["pass"] else 1
+        try:
+            metrics, results = run(args)
+            output = write_outputs(args, metrics, results)
+            print(json.dumps({"output": str(output), **metrics}, ensure_ascii=False, indent=2))
+            return 0 if metrics["pass"] else 1
+        finally:
+            cleanup_fixture(args)
     except (requests.RequestException, subprocess.SubprocessError, AssertionError) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

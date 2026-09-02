@@ -22,7 +22,7 @@ public class JwtService {
     private final long expirationSeconds;
 
     public JwtService(
-            @Value("${app.jwt-secret:local-pr1-secret-change-me}") String secret,
+            @Value("${app.jwt-secret}") String secret,
             @Value("${app.jwt-expiration-seconds:7200}") long expirationSeconds
     ) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
